@@ -55,9 +55,8 @@ func TestClusterKeySlot(t *testing.T) {
 	rdb := srv.NewClient()
 	defer func() { require.NoError(t, rdb.Close()) }()
 
-	slotTableLen := len(util.SlotTable)
-	for i := 0; i < slotTableLen; i++ {
-		require.EqualValues(t, i, rdb.ClusterKeySlot(ctx, util.SlotTable[i]).Val())
+	for i, slot := range util.SlotTable {
+		require.EqualValues(t, i, rdb.ClusterKeySlot(ctx, slot).Val())
 	}
 }
 
@@ -386,7 +385,7 @@ func TestClusterMultiple(t *testing.T) {
 	var rdb []*redis.Client
 	var nodeID []string
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		s := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 		t.Cleanup(s.Close)
 		c := s.NewClient()
@@ -406,7 +405,7 @@ func TestClusterMultiple(t *testing.T) {
 	clusterNodes += fmt.Sprintf("%s %s %d slave %s", nodeID[3], srv[3].Host(), srv[3].Port(), nodeID[2])
 
 	// node0 doesn't serve any slot, just like a router
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		require.NoError(t, rdb[i].Do(ctx, "clusterx", "setnodes", clusterNodes, "1").Err())
 	}
 
@@ -576,7 +575,7 @@ func TestClusterReset(t *testing.T) {
 		slotNum := 2
 		// slow down the migration speed to avoid breaking other test cases
 		require.NoError(t, rdb0.ConfigSet(ctx, "migrate-speed", "128").Err())
-		for i := 0; i < 1024; i++ {
+		for i := range 1024 {
 			require.NoError(t, rdb0.RPush(ctx, "my-list", fmt.Sprintf("element%d", i)).Err())
 		}
 

@@ -222,7 +222,7 @@ func TestCopyList(t *testing.T) {
 
 	EqualListValues := func(t *testing.T, key string, value []string) {
 		require.EqualValues(t, len(value), rdb.LLen(ctx, key).Val())
-		for i := 0; i < len(value); i++ {
+		for i := range value {
 			require.EqualValues(t, value[i], rdb.LIndex(ctx, key, int64(i)).Val())
 		}
 	}
@@ -752,13 +752,13 @@ func TestCopyBitmap(t *testing.T) {
 	defer func() { require.NoError(t, rdb.Close()) }()
 
 	EqualBitSetValues := func(t *testing.T, key string, value []int64) {
-		for i := 0; i < len(value); i++ {
+		for i := range value {
 			require.EqualValues(t, int64(value[i]), rdb.Do(ctx, "BITPOS", key, 1, value[i]/8).Val())
 		}
 	}
 
 	SetBits := func(t *testing.T, key string, value []int64) {
-		for i := 0; i < len(value); i++ {
+		for i := range value {
 			require.NoError(t, rdb.Do(ctx, "SETBIT", key, value[i], 1).Err())
 		}
 	}
@@ -847,7 +847,7 @@ func TestCopySint(t *testing.T) {
 
 	EqualSIntValues := func(t *testing.T, key string, value []int) {
 		require.EqualValues(t, len(value), rdb.Do(ctx, "SICARD", key).Val())
-		for i := 0; i < len(value); i++ {
+		for i := range value {
 			require.EqualValues(t, []interface{}{int64(1)}, rdb.Do(ctx, "SIEXISTS", key, value[i]).Val())
 		}
 	}

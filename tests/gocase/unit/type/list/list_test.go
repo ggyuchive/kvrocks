@@ -76,13 +76,13 @@ func testLTRIM(t *testing.T, configs util.KvrocksServerConfigs) {
 			require.NoError(t, rdb.RPush(ctx, key, value).Err())
 			myList = append(myList, value)
 
-			for i := int64(0); i < startLen; i++ {
+			for range startLen {
 				s := strconv.FormatInt(rand.Int63(), 10)
 				require.NoError(t, rdb.RPush(ctx, key, s).Err())
 				myList = append(myList, s)
 			}
 
-			for i := 0; i < 1000; i++ {
+			for range 1000 {
 				lo := int64(rand.Float64() * float64(startLen))
 				hi := int64(float64(lo) + rand.Float64()*float64(startLen))
 
@@ -162,7 +162,7 @@ func testZipList(t *testing.T, configs util.KvrocksServerConfigs) {
 	t.Run("Stress tester for #3343-alike bugs", func(t *testing.T) {
 		key := "key"
 		require.NoError(t, rdb.Del(ctx, key).Err())
-		for i := 0; i < 10000; i++ {
+		for range 10000 {
 			op := rand.Int63n(6)
 			randCnt := 5 - rand.Int63n(10)
 			var ele string
@@ -197,11 +197,11 @@ func testZipList(t *testing.T, configs util.KvrocksServerConfigs) {
 
 	t.Run("ziplist implementation: value encoding and backlink", func(t *testing.T) {
 		iterations := 100
-		for j := 0; j < iterations; j++ {
+		for j := range iterations {
 			key := fmt.Sprintf("l1-%d", j)
 			require.NoError(t, rdb.Del(ctx, key).Err())
 			var lis []string
-			for i := 0; i < 200; i++ {
+			for range 200 {
 				op := rand.Int63n(7)
 				data := ""
 				switch op {
@@ -241,12 +241,12 @@ func testZipList(t *testing.T, configs util.KvrocksServerConfigs) {
 	})
 
 	t.Run("ziplist implementation: encoding stress testing", func(t *testing.T) {
-		for j := 0; j < 200; j++ {
+		for j := range 200 {
 			key := fmt.Sprintf("l2-%d", j)
 			require.NoError(t, rdb.Del(ctx, key).Err())
 			var lis []string
 			l := int(rand.Int63n(400))
-			for i := 0; i < l; i++ {
+			for range l {
 				rv := util.RandomValue()
 				util.RandPathNoResult(
 					func() {
@@ -260,7 +260,7 @@ func testZipList(t *testing.T, configs util.KvrocksServerConfigs) {
 				)
 			}
 			require.Equal(t, int64(len(lis)), rdb.LLen(ctx, key).Val())
-			for i := 0; i < l; i++ {
+			for i := range l {
 				require.Equal(t, lis[i], rdb.LIndex(ctx, key, int64(i)).Val())
 			}
 		}
@@ -1638,7 +1638,7 @@ func TestPotentialDataRaceInBlockingCommand(t *testing.T) {
 	listKey := "mylist"
 	rdb.Del(ctx, listKey)
 	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1655,7 +1655,7 @@ func TestPotentialDataRaceInBlockingCommand(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < 64; i++ {
+	for range 64 {
 		pipe := rdb.TxPipeline()
 		pipe.LPush(ctx, listKey, "element")
 		_, err := pipe.Exec(ctx)

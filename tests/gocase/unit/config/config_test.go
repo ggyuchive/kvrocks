@@ -174,11 +174,11 @@ func TestDynamicChangeWorkerThread(t *testing.T) {
 		runCommands := func(workers int) {
 			var wg sync.WaitGroup
 			require.NoError(t, rdb.Do(ctx, "CONFIG", "SET", "workers", strconv.Itoa(workers)).Err())
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					for j := 0; j < 10; j++ {
+					for range 10 {
 						require.NoError(t, rdb.Set(ctx, "foo", "bar", 0).Err())
 					}
 				}()

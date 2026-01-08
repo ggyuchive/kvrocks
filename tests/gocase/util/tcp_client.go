@@ -80,7 +80,7 @@ func (c *TCPClient) MustReadStrings(t testing.TB, s []string) {
 	n, err := strconv.Atoi(r[1:])
 	require.NoError(t, err)
 	require.Equal(t, n, len(s))
-	for i := 0; i < n; i++ {
+	for i := range n {
 		_, err := c.ReadLine()
 		require.NoError(t, err)
 		c.MustRead(t, s[i])

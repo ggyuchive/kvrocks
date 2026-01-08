@@ -166,7 +166,7 @@ func TestSlotMigrateDestServerKilledAgain(t *testing.T) {
 		slot := 1
 		k1 := fmt.Sprintf("\x3a\x88{%s}\x3d\xaa", util.SlotTable[slot])
 		cnt := 257
-		for i := 0; i < cnt; i++ {
+		for range cnt {
 			require.NoError(t, rdb0.LPush(ctx, k1, "\0000\0001").Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -195,7 +195,7 @@ func TestSlotMigrateDestServerKilledAgain(t *testing.T) {
 
 		slot := 8
 		value := strings.Repeat("a", 512)
-		for i := 0; i < 20000; i++ {
+		for range 20000 {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], value).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -242,7 +242,7 @@ func TestSlotMigrateSourceServerFlushedOrKilled(t *testing.T) {
 		defer func() {
 			require.NoError(t, rdb0.ConfigSet(ctx, "migrate-type", "raw-key-value").Err())
 		}()
-		for i := 0; i < 20000; i++ {
+		for i := range 20000 {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], i).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -258,7 +258,7 @@ func TestSlotMigrateSourceServerFlushedOrKilled(t *testing.T) {
 
 		slot := 20
 		value := strings.Repeat("a", 512)
-		for i := 0; i < 20000; i++ {
+		for range 20000 {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], value).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -306,7 +306,7 @@ func TestSlotMigrateDisablePersistClusterNodes(t *testing.T) {
 	require.ErrorContains(t, rdb1.Set(ctx, util.SlotTable[slot], "foobar", 0).Err(), "MOVED")
 
 	cnt := 100
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], i).Err())
 	}
 	require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -346,7 +346,7 @@ func TestSlotMigrateNewNodeAndAuth(t *testing.T) {
 		require.ErrorContains(t, rdb1.Set(ctx, util.SlotTable[slot], "foobar", 0).Err(), "MOVED")
 
 		cnt := 100
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], i).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -362,7 +362,7 @@ func TestSlotMigrateNewNodeAndAuth(t *testing.T) {
 		require.NoError(t, rdb1.ConfigSet(ctx, "requirepass", "password").Err())
 		cnt := 100
 		slot := 22
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], i).Err())
 		}
 
@@ -420,7 +420,7 @@ func TestSlotMigrateThreeNodes(t *testing.T) {
 	t.Run("MIGRATE - Fail to migrate slot because source server is changed to slave during migrating", func(t *testing.T) {
 		slot := 10
 		value := strings.Repeat("a", 512)
-		for i := 0; i < 20000; i++ {
+		for range 20000 {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], value).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id2).Val())
@@ -503,7 +503,7 @@ func TestSlotMigrateSync(t *testing.T) {
 		slot++
 		cnt := 100000
 		value := strings.Repeat("a", 512)
-		for i := 0; i < cnt; i++ {
+		for range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], value).Err())
 		}
 
@@ -538,7 +538,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 	t.Run("MIGRATE - Cannot migrate two slot at the same time", func(t *testing.T) {
 		cnt := 20000
 		slot := 0
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], i).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", slot, id1).Val())
@@ -841,7 +841,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 		}
 
 		cnt := 2000
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, keys[0], fmt.Sprintf("%s-%d", valuePrefix, i)).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", migratingSlot, id1).Val())
@@ -1004,7 +1004,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 	t.Run("MIGRATE - Slot isn't forbidden writing when starting migrating", func(t *testing.T) {
 		testSlot += 1
 		cnt := 20000
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[testSlot], i).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", testSlot, id1).Val())
@@ -1034,7 +1034,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 		require.NoError(t, rdb0.Del(ctx, util.SlotTable[testSlot]).Err())
 		// more than pipeline size(16) and max items(16) in command
 		cnt := 1000
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[testSlot], i).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", testSlot, id1).Val())
@@ -1052,7 +1052,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 		testSlot += 1
 		require.NoError(t, rdb0.Del(ctx, util.SlotTable[testSlot]).Err())
 		cnt := 100
-		for i := 0; i < cnt; i++ {
+		for i := range cnt {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[testSlot], i).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", testSlot, id1).Val())
@@ -1079,14 +1079,14 @@ func TestSlotMigrateDataType(t *testing.T) {
 			require.NoError(t, rdb0.ConfigSet(ctx, "migrate-speed", "4096").Err())
 		}()
 
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			require.NoError(t, rdb0.RPush(ctx, srcListName, fmt.Sprintf("element%d", i)).Err())
 		}
 
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", testSlot, id1).Val())
 		requireMigrateState(t, rdb0, testSlot, SlotMigrationStateStarted)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			require.NoError(t, rdb0.LMove(ctx, srcListName, dstListName, "RIGHT", "LEFT").Err())
 		}
 		waitForMigrateState(t, rdb0, testSlot, SlotMigrationStateSuccess)
@@ -1114,14 +1114,14 @@ func TestSlotMigrateDataType(t *testing.T) {
 
 		srcLen := 1_000
 
-		for i := 0; i < srcLen; i++ {
+		for i := range srcLen {
 			require.NoError(t, rdb0.RPush(ctx, srcListName, fmt.Sprintf("element%d", i)).Err())
 		}
 
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", testSlot, id1).Val())
 		requireMigrateState(t, rdb0, testSlot, SlotMigrationStateStarted)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			require.NoError(t, rdb0.LMove(ctx, srcListName, srcListName, "RIGHT", "LEFT").Err())
 		}
 		waitForMigrateState(t, rdb0, testSlot, SlotMigrationStateSuccess)
@@ -1264,8 +1264,8 @@ func TestSlotRangeMigrate(t *testing.T) {
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODES", clusterNodes, "1").Err())
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODES", clusterNodes, "1").Err())
 
-	for slot := 0; slot < 500; slot++ {
-		for i := 0; i < 10; i++ {
+	for slot := range 500 {
+		for i := range 10 {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[slot], i).Err())
 		}
 	}
@@ -1277,7 +1277,7 @@ func TestSlotRangeMigrate(t *testing.T) {
 	})
 
 	t.Run("MIGRATE - Special slot range cases", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			require.NoError(t, rdb1.LPush(ctx, util.SlotTable[16383], i).Err())
 		}
 
@@ -1372,7 +1372,7 @@ func TestSlotRangeMigrate(t *testing.T) {
 
 		largeSlot := 210
 		value := strings.Repeat("a", 512)
-		for i := 0; i < 20000; i++ {
+		for range 20000 {
 			require.NoError(t, rdb0.LPush(ctx, util.SlotTable[largeSlot], value).Err())
 		}
 		require.Equal(t, "OK", rdb0.Do(ctx, "clusterx", "migrate", "200-220", id1).Val())

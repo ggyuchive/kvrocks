@@ -1741,7 +1741,7 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 				aux = append(aux, z.Member.(string))
 			}
 			fromRedis := rdb.ZRange(ctx, "myzset", 0, -1).Val()
-			for i := 0; i < len(fromRedis); i++ {
+			for i := range fromRedis {
 				if aux[i] != fromRedis[i] {
 					delta++
 				}
@@ -1903,7 +1903,7 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 		}
 		l1 := rdb.ZRange(ctx, "myzset", 0, -1).Val()
 		l2 := rdb.ZRevRange(ctx, "myzset", 0, -1).Val()
-		for j := 0; j < len(l1); j++ {
+		for j := range l1 {
 			if l1[j] != l2[len(l1)-j-1] {
 				diff++
 			}

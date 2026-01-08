@@ -542,7 +542,7 @@ func TestFullSyncReplication(t *testing.T) {
 
 	t.Run("Full sync replication should work correctly", func(t *testing.T) {
 		value := strings.Repeat("a", 128*1024)
-		for i := 0; i < 1024; i++ {
+		for i := range 1024 {
 			require.NoError(t, masterClient.Set(ctx, fmt.Sprintf("key%d", i), value, 0).Err())
 		}
 
@@ -609,7 +609,7 @@ func TestSlaveLostMaster(t *testing.T) {
 	require.NoError(t, masterClient.Do(ctx, "clusterx", "SETNODES", masterNodesInfo, "1").Err())
 	value := strings.Repeat("a", 128*1024)
 
-	for i := 0; i < 1024; i++ {
+	for i := range 1024 {
 		require.NoError(t, masterClient.Set(ctx, fmt.Sprintf("key%d", i), value, 0).Err())
 	}
 

@@ -150,7 +150,7 @@ func TestGeo(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
 			rdb := geoAddAndGeoRangeClients[i]
-			for attempt := 0; attempt < 30; attempt++ {
+			for attempt := range 30 {
 				var debuginfo string
 				var seed int64
 				if attempt < len(regressionVectors) {
@@ -179,7 +179,7 @@ func TestGeo(t *testing.T) {
 				debuginfo += "Search area: " + strconv.FormatFloat(searchLon, 'f', 10, 64) + "," + strconv.FormatFloat(searchLat, 'f', 10, 64) + " " + strconv.FormatInt(radiusKm, 10) + " km"
 				var result []string
 				var argvs []*redis.GeoLocation
-				for j := 0; j < 20000; j++ {
+				for j := range 20000 {
 					lon, lat := geoRandomPointWithSeed(seed)
 					argvs = append(argvs, &redis.GeoLocation{Longitude: lon, Latitude: lat, Name: "place:" + strconv.Itoa(j)})
 					distance := geoDistance(lon, lat, searchLon, searchLat)

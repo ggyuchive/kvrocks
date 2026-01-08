@@ -19,7 +19,10 @@
 
 package util
 
-import "fmt"
+import (
+	"fmt"
+	"maps"
+)
 
 type FieldType int
 
@@ -61,9 +64,7 @@ func GenerateConfigsMatrix(configOptions []ConfigOptions) ([]KvrocksServerConfig
 		}
 
 		currentConfigBackup := make(KvrocksServerConfigs, len(currentConfig))
-		for k, v := range currentConfig {
-			currentConfigBackup[k] = v
-		}
+		maps.Copy(currentConfigBackup, currentConfig)
 
 		for _, option := range configs[currentIndex].Options {
 			err := verifyConfigOptions(configs[currentIndex].ConfigType, option)

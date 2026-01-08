@@ -68,7 +68,7 @@ func Populate(t testing.TB, rdb *redis.Client, prefix string, n, size int) {
 	ctx := context.Background()
 	p := rdb.Pipeline()
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		p.Do(ctx, "SET", fmt.Sprintf("%s%d", prefix, i), strings.Repeat("A", size))
 	}
 

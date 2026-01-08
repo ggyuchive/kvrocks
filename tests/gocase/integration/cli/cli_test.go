@@ -165,7 +165,7 @@ func TestRedisCli(t *testing.T) {
 			require.NoError(t, cli.Write("info"))
 			r, err := cli.Read()
 			require.NoError(t, err)
-			for _, line := range strings.Split(r, "\n") {
+			for line := range strings.SplitSeq(r, "\n") {
 				require.Regexp(t, `^$|^#|^[^#:]+:`, line)
 			}
 		})
@@ -354,11 +354,11 @@ func TestRedisCli(t *testing.T) {
 		defer func() { require.NoError(t, f.Close()) }()
 		cmd := formatArgs("select", "9")
 		cmd += formatArgs("del", "test-counter")
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			cmd += formatArgs("incr", "test-counter")
 			cmd += formatArgs("set", "large-key", strings.Repeat("x", 20000))
 		}
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			cmd += formatArgs("set", "very-large-key", strings.Repeat("x", 512000))
 		}
 		_, err = f.WriteString(cmd)

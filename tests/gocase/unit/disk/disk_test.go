@@ -52,7 +52,7 @@ func TestDisk(t *testing.T) {
 
 	t.Run("Disk usage Hash", func(t *testing.T) {
 		approximateSize := 0
-		for i := 0; i < 10000; i++ {
+		for i := range 10000 {
 			require.NoError(t, rdb.HSet(ctx, "hashkey", "key"+strconv.Itoa(i), "value"+strconv.Itoa(i)).Err())
 			approximateSize += len("hashkey") + len("key"+strconv.Itoa(i)) + len("value"+strconv.Itoa(i)) + 8
 		}
@@ -65,7 +65,7 @@ func TestDisk(t *testing.T) {
 
 	t.Run("Disk usage Set", func(t *testing.T) {
 		approximateSize := 0
-		for i := 0; i < 10000; i++ {
+		for i := range 10000 {
 			require.NoError(t, rdb.SAdd(ctx, "setkey", i).Err())
 			approximateSize += len(strconv.Itoa(i)) + len("setkey") + 8
 		}
@@ -77,7 +77,7 @@ func TestDisk(t *testing.T) {
 
 	t.Run("Disk usage List", func(t *testing.T) {
 		approximateSize := 0
-		for i := 0; i < 10000; i++ {
+		for i := range 10000 {
 			require.NoError(t, rdb.LPush(ctx, "listkey", i).Err())
 			approximateSize += len("listkey") + 8 + 8 + len(strconv.Itoa(i))
 		}
@@ -89,7 +89,7 @@ func TestDisk(t *testing.T) {
 
 	t.Run("Disk usage Zset", func(t *testing.T) {
 		approximateSize := 0
-		for i := 0; i < 10000; i++ {
+		for i := range 10000 {
 			require.NoError(t, rdb.ZAdd(ctx, "zsetkey", redis.Z{Score: float64(i), Member: "x" + strconv.Itoa(i)}).Err())
 			approximateSize += (len("zsetkey") + 8 + len("x"+strconv.Itoa(i))) * 2
 		}
@@ -113,7 +113,7 @@ func TestDisk(t *testing.T) {
 
 	t.Run("Disk usage Sortedint", func(t *testing.T) {
 		approximateSize := 0
-		for i := 0; i < 100000; i++ {
+		for i := range 100000 {
 			require.NoError(t, rdb.Do(ctx, "siadd", "sortedintkey", i).Err())
 			approximateSize += len("sortedintkey") + 8 + 8
 		}
@@ -125,7 +125,7 @@ func TestDisk(t *testing.T) {
 
 	t.Run("Disk usage Stream", func(t *testing.T) {
 		approximateSize := 0
-		for i := 0; i < 100000; i++ {
+		for i := range 100000 {
 			require.NoError(t, rdb.Do(ctx, "xadd", "streamkey", "*", "key"+strconv.Itoa(i), "value"+strconv.Itoa(i)).Err())
 			approximateSize += len("streamkey") + 8 + 8 + len("value"+strconv.Itoa(i)) + len("value"+strconv.Itoa(i))
 		}
