@@ -108,6 +108,86 @@ TEST_F(RedisStringTest, IncrByFloat) {
   s = string_->Del(*ctx_, key_);
 }
 
+TEST_F(RedisStringTest, IncrEx) {
+  StringIncrExResult result;
+  std::string value;
+  int64_t ttl = 0;
+  auto s = string_->Del(*ctx_, key_);
+
+  // Increment by 1 from 0 when no option is given
+  StringIncrExArgs args;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, result.int_value);
+  EXPECT_EQ(1, result.int_delta);
+
+  // Out-of-range result is rejected and leaves the value and TTL untouched
+  args.int_increment = 100;
+  args.int_upper_bound = 50;
+  args.expire = util::GetTimeStampMS() + 100000;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, result.int_value);
+  EXPECT_EQ(0, result.int_delta);
+  EXPECT_TRUE(string_->TTL(*ctx_, key_, &ttl).ok());
+  EXPECT_EQ(-1, ttl);
+
+  // SATURATE clamps the result to the bound and still sets the TTL
+  args.saturate = true;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(50, result.int_value);
+  EXPECT_EQ(49, result.int_delta);
+  string_->Get(*ctx_, key_, &value);
+  EXPECT_EQ("50", value);
+  EXPECT_TRUE(string_->TTL(*ctx_, key_, &ttl).ok());
+  EXPECT_GT(ttl, 0);
+
+  // ENX keeps the existing TTL
+  args = StringIncrExArgs();
+  args.expire = util::GetTimeStampMS() + 1000000;
+  args.enx = true;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  EXPECT_TRUE(string_->TTL(*ctx_, key_, &ttl).ok());
+  EXPECT_LE(ttl, 100000);
+
+  // PERSIST removes the TTL
+  args = StringIncrExArgs();
+  args.expire = 0;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(52, result.int_value);
+  EXPECT_TRUE(string_->TTL(*ctx_, key_, &ttl).ok());
+  EXPECT_EQ(-1, ttl);
+
+  // BYFLOAT increment
+  args = StringIncrExArgs();
+  args.by_float = true;
+  args.float_increment = 0.5;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  EXPECT_DOUBLE_EQ(52.5, result.float_value);
+  EXPECT_DOUBLE_EQ(0.5, result.float_delta);
+  string_->Get(*ctx_, key_, &value);
+  EXPECT_EQ("52.5", value);
+
+  // A past expire time deletes the key
+  args = StringIncrExArgs();
+  args.by_float = true;
+  args.expire = 1;
+  s = string_->IncrEx(*ctx_, key_, args, &result);
+  EXPECT_TRUE(s.ok());
+  s = string_->Get(*ctx_, key_, &value);
+  EXPECT_TRUE(s.IsNotFound());
+
+  // Non-numeric values are rejected
+  string_->Set(*ctx_, key_, "abc");
+  s = string_->IncrEx(*ctx_, key_, StringIncrExArgs(), &result);
+  EXPECT_TRUE(s.IsInvalidArgument());
+  s = string_->Del(*ctx_, key_);
+}
+
 TEST_F(RedisStringTest, IncrByFloatStoredFormat) {
   double f = 0.0;
   std::string value;

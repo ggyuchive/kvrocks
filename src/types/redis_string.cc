@@ -488,6 +488,112 @@ rocksdb::Status String::IncrByFloat(engine::Context &ctx, const std::string &use
   return updateRawValue(ctx, ns_key, raw_value);
 }
 
+rocksdb::Status String::IncrEx(engine::Context &ctx, const std::string &user_key, const StringIncrExArgs &args,
+                               StringIncrExResult *result) {
+  std::string ns_key = AppendNamespacePrefix(user_key);
+
+  std::string value;
+  uint64_t old_expire = 0;
+  rocksdb::Status s = getValueAndExpire(ctx, ns_key, &value, &old_expire);
+  if (!s.ok() && !s.IsNotFound()) return s;
+  bool exists = s.ok();
+
+  // An out-of-range result is rejected by default: the key is left untouched
+  // and the reply is the current value with an applied increment of 0.
+  std::string new_value;
+  if (args.by_float) {
+    double old_value = 0;
+    if (exists) {
+      auto parse_result = ParseFloat(value);
+      if (!parse_result || std::isnan(*parse_result) || isspace(value[0])) {
+        return rocksdb::Status::InvalidArgument("value is not a valid float");
+      }
+      old_value = *parse_result;
+    }
+    if (std::isinf(old_value)) {
+      return rocksdb::Status::InvalidArgument("value cannot be Infinity");
+    }
+
+    double n = old_value + args.float_increment;
+    if (std::isinf(n) || n < args.float_lower_bound || n > args.float_upper_bound) {
+      if (!args.saturate) {
+        result->float_value = old_value;
+        result->float_delta = 0;
+        return rocksdb::Status::OK();
+      }
+      if (std::isinf(n)) {
+        n = args.float_increment >= 0 ? args.float_upper_bound : args.float_lower_bound;
+      } else {
+        n = n > args.float_upper_bound ? args.float_upper_bound : args.float_lower_bound;
+      }
+    }
+
+    double delta = n - old_value;
+    if (std::isinf(delta)) {
+      return rocksdb::Status::InvalidArgument("applied increment would be Infinity");
+    }
+    result->float_value = n;
+    result->float_delta = delta;
+    new_value = util::Float2String(n);
+  } else {
+    int64_t old_value = 0;
+    if (exists) {
+      auto parse_result = ParseInt<int64_t>(value, 10);
+      if (!parse_result || isspace(value[0])) {
+        return rocksdb::Status::InvalidArgument("value is not an integer or out of range");
+      }
+      old_value = *parse_result;
+    }
+
+    int64_t n = 0;
+    bool overflow = __builtin_add_overflow(old_value, args.int_increment, &n);
+    if (overflow || n < args.int_lower_bound || n > args.int_upper_bound) {
+      if (!args.saturate) {
+        result->int_value = old_value;
+        result->int_delta = 0;
+        return rocksdb::Status::OK();
+      }
+      if (overflow) {
+        n = args.int_increment >= 0 ? args.int_upper_bound : args.int_lower_bound;
+      } else {
+        n = n > args.int_upper_bound ? args.int_upper_bound : args.int_lower_bound;
+      }
+    }
+
+    int64_t delta = 0;
+    if (__builtin_sub_overflow(n, old_value, &delta)) {
+      return rocksdb::Status::InvalidArgument("applied increment would overflow");
+    }
+    result->int_value = n;
+    result->int_delta = delta;
+    new_value = std::to_string(n);
+  }
+
+  uint64_t expire = old_expire;
+  bool set_new_expire = false;
+  if (args.expire) {
+    if (*args.expire == 0) {
+      expire = 0;
+    } else if (!args.enx || old_expire == 0) {
+      expire = *args.expire;
+      set_new_expire = true;
+    }
+  }
+
+  // The new expire time has already passed, so the key is deleted instead.
+  if (set_new_expire && expire <= util::GetTimeStampMS()) {
+    if (!exists) return rocksdb::Status::OK();
+    return storage_->Delete(ctx, storage_->DefaultWriteOptions(), metadata_cf_handle_, ns_key);
+  }
+
+  std::string raw_value;
+  Metadata metadata(kRedisString, false);
+  metadata.expire = expire;
+  metadata.Encode(&raw_value);
+  raw_value.append(new_value);
+  return updateRawValue(ctx, ns_key, raw_value);
+}
+
 rocksdb::Status String::MSet(engine::Context &ctx, const std::vector<StringPair> &pairs, StringMSetArgs args,
                              bool *flag = nullptr) {
   if (flag) *flag = false;

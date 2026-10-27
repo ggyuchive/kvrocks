@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <variant>
@@ -59,6 +60,30 @@ struct StringMSetArgs {
   uint64_t expire;
   StringSetType type;
   bool keep_ttl;
+};
+
+struct StringIncrExArgs {
+  // Use the float fields if true, otherwise the integer fields.
+  bool by_float = false;
+  int64_t int_increment = 1;
+  int64_t int_lower_bound = std::numeric_limits<int64_t>::min();
+  int64_t int_upper_bound = std::numeric_limits<int64_t>::max();
+  double float_increment = 0;
+  double float_lower_bound = std::numeric_limits<double>::lowest();
+  double float_upper_bound = std::numeric_limits<double>::max();
+  // Clamp an out-of-range result to the bound instead of rejecting the operation.
+  bool saturate = false;
+  // Expire time in milliseconds: nullopt keeps the current TTL, 0 removes it (PERSIST).
+  std::optional<uint64_t> expire;
+  // Only set the expire time if the key has no TTL.
+  bool enx = false;
+};
+
+struct StringIncrExResult {
+  int64_t int_value = 0;
+  int64_t int_delta = 0;
+  double float_value = 0;
+  double float_delta = 0;
 };
 
 enum class StringLCSType { NONE, LEN, IDX };
@@ -116,6 +141,8 @@ class String : public Database {
                            uint64_t *new_size);
   rocksdb::Status IncrBy(engine::Context &ctx, const std::string &user_key, int64_t increment, int64_t *new_value);
   rocksdb::Status IncrByFloat(engine::Context &ctx, const std::string &user_key, double increment, double *new_value);
+  rocksdb::Status IncrEx(engine::Context &ctx, const std::string &user_key, const StringIncrExArgs &args,
+                         StringIncrExResult *result);
   std::vector<rocksdb::Status> MGet(engine::Context &ctx, const std::vector<Slice> &keys,
                                     std::vector<std::string> *values);
   rocksdb::Status MSet(engine::Context &ctx, const std::vector<StringPair> &pairs, StringMSetArgs args, bool *flag);

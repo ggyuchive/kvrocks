@@ -18,6 +18,7 @@
  *
  */
 
+#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -693,6 +694,106 @@ class CommandIncrByFloat : public Commander {
   double increment_ = 0;
 };
 
+class CommandIncrEx : public Commander {
+ public:
+  Status Parse(const std::vector<std::string> &args) override {
+    CommandParser parser(args, 2);
+    bool has_increment = false, has_expire = false, persist = false;
+    std::optional<std::string> lower_bound, upper_bound;
+    std::string_view ttl_flag;
+    while (parser.Good()) {
+      if (!has_increment && parser.EatEqICase("BYINT")) {
+        if (!parser.Good()) return parser.InvalidSyntax();
+        auto increment = ParseInt<int64_t>(GET_OR_RET(parser.TakeStr()), 10);
+        if (!increment) return {Status::RedisParseErr, "Increment is not an integer or out of range"};
+        incr_args_.int_increment = *increment;
+        has_increment = true;
+      } else if (!has_increment && parser.EatEqICase("BYFLOAT")) {
+        if (!parser.Good()) return parser.InvalidSyntax();
+        auto increment = ParseFloat(GET_OR_RET(parser.TakeStr()));
+        if (!increment || std::isnan(*increment)) return {Status::RedisParseErr, "Increment is not a valid float"};
+        if (std::isinf(*increment)) return {Status::RedisParseErr, "BYFLOAT increment cannot be Infinity"};
+        incr_args_.by_float = true;
+        incr_args_.float_increment = *increment;
+        has_increment = true;
+      } else if (!lower_bound && parser.EatEqICase("LBOUND")) {
+        if (!parser.Good()) return parser.InvalidSyntax();
+        lower_bound = GET_OR_RET(parser.TakeStr());
+      } else if (!upper_bound && parser.EatEqICase("UBOUND")) {
+        if (!parser.Good()) return parser.InvalidSyntax();
+        upper_bound = GET_OR_RET(parser.TakeStr());
+      } else if (!incr_args_.saturate && parser.EatEqICase("SATURATE")) {
+        incr_args_.saturate = true;
+      } else if (!incr_args_.enx && parser.EatEqICase("ENX")) {
+        incr_args_.enx = true;
+      } else if (!has_expire && parser.EatEqICase("PERSIST")) {
+        incr_args_.expire = 0;
+        has_expire = persist = true;
+      } else if (!has_expire) {
+        auto expire = GET_OR_RET(ParseExpireFlags(parser, ttl_flag));
+        if (!expire) return parser.InvalidSyntax();
+        incr_args_.expire = *expire;
+        has_expire = true;
+      } else {
+        return parser.InvalidSyntax();
+      }
+    }
+    if (incr_args_.enx && persist) return parser.InvalidSyntax();
+
+    // The type of LBOUND/UBOUND depends on BYINT/BYFLOAT, which may come after them.
+    if (incr_args_.by_float) {
+      if (lower_bound) {
+        auto bound = ParseFloat(*lower_bound);
+        if (!bound || std::isnan(*bound)) return {Status::RedisParseErr, "LBOUND is not a valid float"};
+        incr_args_.float_lower_bound = *bound;
+      }
+      if (upper_bound) {
+        auto bound = ParseFloat(*upper_bound);
+        if (!bound || std::isnan(*bound)) return {Status::RedisParseErr, "UBOUND is not a valid float"};
+        incr_args_.float_upper_bound = *bound;
+      }
+      if (incr_args_.float_lower_bound > incr_args_.float_upper_bound) {
+        return {Status::RedisParseErr, "LBOUND can't be greater than UBOUND"};
+      }
+    } else {
+      if (lower_bound) {
+        auto bound = ParseInt<int64_t>(*lower_bound, 10);
+        if (!bound) return {Status::RedisParseErr, "LBOUND is not an integer or out of range"};
+        incr_args_.int_lower_bound = *bound;
+      }
+      if (upper_bound) {
+        auto bound = ParseInt<int64_t>(*upper_bound, 10);
+        if (!bound) return {Status::RedisParseErr, "UBOUND is not an integer or out of range"};
+        incr_args_.int_upper_bound = *bound;
+      }
+      if (incr_args_.int_lower_bound > incr_args_.int_upper_bound) {
+        return {Status::RedisParseErr, "LBOUND can't be greater than UBOUND"};
+      }
+    }
+
+    if (incr_args_.enx && !has_expire) return {Status::RedisParseErr, "ENX flag requires an expiration"};
+    return Status::OK();
+  }
+
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
+    StringIncrExResult result;
+    redis::String string_db(srv->storage, conn->GetNamespace());
+
+    auto s = string_db.IncrEx(ctx, args_[1], incr_args_, &result);
+    if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
+
+    if (incr_args_.by_float) {
+      *output = redis::Array({conn->Double(result.float_value), conn->Double(result.float_delta)});
+    } else {
+      *output = redis::Array({redis::Integer(result.int_value), redis::Integer(result.int_delta)});
+    }
+    return Status::OK();
+  }
+
+ private:
+  StringIncrExArgs incr_args_;
+};
+
 class CommandDecrBy : public Commander {
  public:
   Status Parse(const std::vector<std::string> &args) override {
@@ -896,5 +997,6 @@ REDIS_REGISTER_COMMANDS(
     MakeCmdAttr<CommandIncrByFloat>("incrbyfloat", 3, "write", 1, 1, 1),
     MakeCmdAttr<CommandIncr>("incr", 2, "write", 1, 1, 1), MakeCmdAttr<CommandDecrBy>("decrby", 3, "write", 1, 1, 1),
     MakeCmdAttr<CommandDecr>("decr", 2, "write", 1, 1, 1), MakeCmdAttr<CommandCAS>("cas", -4, "write", 1, 1, 1),
-    MakeCmdAttr<CommandCAD>("cad", 3, "write", 1, 1, 1), MakeCmdAttr<CommandLCS>("lcs", -3, "read-only", 1, 2, 1), )
+    MakeCmdAttr<CommandCAD>("cad", 3, "write", 1, 1, 1), MakeCmdAttr<CommandLCS>("lcs", -3, "read-only", 1, 2, 1),
+    MakeCmdAttr<CommandIncrEx>("increx", -2, "write", 1, 1, 1), )
 }  // namespace redis
