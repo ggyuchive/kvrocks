@@ -488,6 +488,30 @@ var setTests = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.EqualValues(t, 0, rdb.SInterCard(ctx, 0, "set3").Val())
 	})
 
+	t.Run("SUNIONCARD with wrong args", func(t *testing.T) {
+		require.ErrorContains(t, rdb.Do(ctx, "sunioncard", "a", "set1").Err(), "is not an integer")
+		require.ErrorContains(t, rdb.Do(ctx, "sunioncard", "0", "set1").Err(), "must be positive")
+		require.ErrorContains(t, rdb.Do(ctx, "sunioncard", "2", "set1").Err(), "wrong number of arguments")
+		require.ErrorContains(t, rdb.Do(ctx, "sunioncard", "1", "set1", "set2").Err(), "syntax error")
+		require.ErrorContains(t, rdb.Do(ctx, "sunioncard", "1", "set1", "LIMIT", "-1").Err(), "can't be negative")
+	})
+
+	t.Run("SUNIONCARD with three sets", func(t *testing.T) {
+		require.NoError(t, rdb.Del(ctx, "set1", "set2", "set3").Err())
+		require.NoError(t, rdb.SAdd(ctx, "set1", "a", "b", "c", "d").Err())
+		require.NoError(t, rdb.SAdd(ctx, "set2", "c").Err())
+		require.NoError(t, rdb.SAdd(ctx, "set3", "a", "c", "e").Err())
+		require.EqualValues(t, 5, rdb.Do(ctx, "sunioncard", "3", "set1", "set2", "set3").Val())
+		require.EqualValues(t, 3, rdb.Do(ctx, "sunioncard", "3", "set1", "set2", "set3", "LIMIT", "3").Val())
+		require.EqualValues(t, 5, rdb.Do(ctx, "sunioncard", "3", "set1", "set2", "set3", "APPROX").Val())
+		require.EqualValues(t, 3, rdb.Do(ctx, "sunioncard", "3", "set1", "set2", "set3", "LIMIT", "3", "APPROX").Val())
+	})
+
+	t.Run("SUNIONCARD against non-set should throw error", func(t *testing.T) {
+		require.NoError(t, rdb.Set(ctx, "key1", "x", 0).Err())
+		util.ErrorRegexp(t, rdb.Do(ctx, "sunioncard", "2", "key1", "noset").Err(), ".*WRONGTYPE.*")
+	})
+
 	t.Run("SINTER with same integer elements but different encoding", func(t *testing.T) {
 		require.NoError(t, rdb.Del(ctx, "set1", "set2").Err())
 		require.NoError(t, rdb.SAdd(ctx, "set1", 1, 2, 3).Err())

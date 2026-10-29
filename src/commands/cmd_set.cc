@@ -292,6 +292,66 @@ class CommandSUnion : public Commander {
   }
 };
 
+class CommandSUnionCard : public Commander {
+ public:
+  Status Parse(const std::vector<std::string> &args) override {
+    auto parse_numkeys = ParseInt<int64_t>(args[1], 10);
+    if (!parse_numkeys) {
+      return {Status::RedisParseErr, errValueNotInteger};
+    }
+    if (*parse_numkeys <= 0) {
+      return {Status::RedisParseErr, errValueMustBePositive};
+    }
+    if (*parse_numkeys > static_cast<int64_t>(args.size()) - 2) {
+      return {Status::RedisParseErr, errWrongNumOfArguments};
+    }
+    numkeys_ = *parse_numkeys;
+
+    CommandParser parser(args, 2 + numkeys_);
+    while (parser.Good()) {
+      if (parser.EatEqICase("limit") && parser.Good()) {
+        auto parse_limit = parser.TakeInt<int64_t>();
+        if (!parse_limit || *parse_limit < 0) {
+          return {Status::RedisParseErr, errLimitIsNegative};
+        }
+        limit_ = *parse_limit;
+      } else if (parser.EatEqICase("approx")) {
+        // The exact cardinality is returned, which is within the error bound of the approximation.
+      } else {
+        return parser.InvalidSyntax();
+      }
+    }
+    return Commander::Parse(args);
+  }
+
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
+    std::vector<Slice> keys;
+    for (size_t i = 2; i < numkeys_ + 2; i++) {
+      keys.emplace_back(args_[i]);
+    }
+
+    redis::Set set_db(srv->storage, conn->GetNamespace());
+    uint64_t ret = 0;
+
+    auto s = set_db.UnionCard(ctx, keys, limit_, &ret);
+    if (!s.ok()) {
+      return {Status::RedisExecErr, s.ToString()};
+    }
+
+    *output = redis::Integer(ret);
+    return Status::OK();
+  }
+
+  static CommandKeyRange Range(const std::vector<std::string> &args) {
+    int num_key = *ParseInt<int>(args[1], 10);
+    return {2, 1 + num_key, 1};
+  }
+
+ private:
+  uint64_t numkeys_ = 0;
+  uint64_t limit_ = 0;
+};
+
 class CommandSInter : public Commander {
  public:
   Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
@@ -472,6 +532,7 @@ REDIS_REGISTER_COMMANDS(Set, MakeCmdAttr<CommandSAdd>("sadd", -3, "write", 1, 1,
                         MakeCmdAttr<CommandSMove>("smove", 4, "write", 1, 2, 1),
                         MakeCmdAttr<CommandSDiff>("sdiff", -2, "read-only slow", 1, -1, 1),
                         MakeCmdAttr<CommandSUnion>("sunion", -2, "read-only slow", 1, -1, 1),
+                        MakeCmdAttr<CommandSUnionCard>("sunioncard", -3, "read-only slow", CommandSUnionCard::Range),
                         MakeCmdAttr<CommandSInter>("sinter", -2, "read-only slow", 1, -1, 1),
                         MakeCmdAttr<CommandSInterCard>("sintercard", -3, "read-only slow", CommandSInterCard::Range),
                         MakeCmdAttr<CommandSDiffStore>("sdiffstore", -3, "write slow", 1, -1, 1),

@@ -334,6 +334,24 @@ rocksdb::Status Set::Union(engine::Context &ctx, const std::vector<Slice> &keys,
   return rocksdb::Status::OK();
 }
 
+rocksdb::Status Set::UnionCard(engine::Context &ctx, const std::vector<Slice> &keys, uint64_t limit,
+                               uint64_t *cardinality) {
+  *cardinality = 0;
+
+  std::map<std::string, bool> union_members;
+  std::vector<std::string> target_members;
+  for (const auto &key : keys) {
+    auto s = Members(ctx, key, &target_members);
+    if (!s.ok()) return s;
+    for (const auto &member : target_members) {
+      union_members[member] = true;
+    }
+  }
+  *cardinality = union_members.size();
+  if (limit > 0 && *cardinality > limit) *cardinality = limit;
+  return rocksdb::Status::OK();
+}
+
 /*
  * Returns the members of the set resulting from the intersection of all the given sets.
  * For example:
