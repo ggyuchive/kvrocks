@@ -247,16 +247,7 @@ class CommandBPop : public BlockingCommander {
   ~CommandBPop() override = default;
 
   Status Parse(const std::vector<std::string> &args) override {
-    auto parse_result = ParseFloat(args[args.size() - 1]);
-    if (!parse_result) {
-      return {Status::RedisParseErr, errTimeoutIsNotFloat};
-    }
-
-    if (*parse_result < 0) {
-      return {Status::RedisParseErr, "timeout should not be negative"};
-    }
-
-    timeout_ = static_cast<int64_t>(*parse_result * 1000 * 1000);
+    timeout_ = GET_OR_RET(ParseTimeout(args.back()));
 
     keys_ = std::vector<std::string>(args.begin() + 1, args.end() - 1);
     return Commander::Parse(args);
@@ -360,11 +351,7 @@ class CommandBLMPop : public BlockingCommander {
   Status Parse(const std::vector<std::string> &args) override {
     CommandParser parser(args, 1);
 
-    auto timeout = GET_OR_RET(parser.TakeFloat());
-    if (timeout < 0) {
-      return {Status::RedisParseErr, errTimeoutIsNegative};
-    }
-    timeout_ = static_cast<int64_t>(timeout * 1000 * 1000);
+    timeout_ = GET_OR_RET(ParseTimeout(GET_OR_RET(parser.TakeStr())));
 
     auto num_keys = GET_OR_RET(parser.TakePositiveInt<uint32_t>());
     keys_.clear();
@@ -755,14 +742,7 @@ class CommandBLMove : public BlockingCommander {
     }
     dst_left_ = arg_val == "left";
 
-    auto parse_result = ParseFloat(args[args.size() - 1]);
-    if (!parse_result) {
-      return {Status::RedisParseErr, errTimeoutIsNotFloat};
-    }
-    if (*parse_result < 0) {
-      return {Status::RedisParseErr, errTimeoutIsNegative};
-    }
-    timeout_ = static_cast<int64_t>(*parse_result * 1000 * 1000);
+    timeout_ = GET_OR_RET(ParseTimeout(args.back()));
 
     return Status::OK();
   }

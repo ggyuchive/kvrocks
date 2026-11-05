@@ -452,7 +452,7 @@ func basicTests(t *testing.T, rdb *redis.Client, ctx context.Context, enabledRES
 		rdb.Del(ctx, "zsetb")
 
 		util.ErrorRegexp(t, rdb.Do(ctx, "bzmpop", 0.1, 1, "zseta").Err(), ".*wrong number of arguments.*")
-		util.ErrorRegexp(t, rdb.Do(ctx, "bzmpop", "wrong_timeout", 1, "zseta", "min").Err(), ".*not started as a number.*")
+		util.ErrorRegexp(t, rdb.Do(ctx, "bzmpop", "wrong_timeout", 1, "zseta", "min").Err(), ".*timeout is not a float or out of range.*")
 		util.ErrorRegexp(t, rdb.Do(ctx, "bzmpop", 0.1, "wrong_numkeys", "zseta", "min").Err(), ".*not started as an integer.*")
 		util.ErrorRegexp(t, rdb.Do(ctx, "bzmpop", 0.1, 2, "zseta", "min").Err(), ".*syntax error.*")
 		util.ErrorRegexp(t, rdb.Do(ctx, "bzmpop", 0.1, 1, "zseta", "min", "max").Err(), ".*syntax error.*")

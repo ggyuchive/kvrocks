@@ -22,6 +22,7 @@
 
 #include "commander.h"
 #include "common/lock_manager.h"
+#include "error_constants.h"
 #include "event_util.h"
 #include "server/redis_connection.h"
 #include "server/server.h"
@@ -150,6 +151,18 @@ class BlockingCommander : public Commander,
   }
 
  protected:
+  // parse a timeout in seconds (e.g. of BLPOP) and return it in microseconds
+  static StatusOr<int64_t> ParseTimeout(std::string_view v) {
+    auto timeout = ParseFloat(v);
+    if (!timeout) {
+      return {Status::RedisParseErr, errTimeoutIsNotFloat};
+    }
+    if (*timeout < 0) {
+      return {Status::RedisParseErr, errTimeoutIsNegative};
+    }
+    return static_cast<int64_t>(*timeout * 1000 * 1000);
+  }
+
   Connection *conn_ = nullptr;
   UniqueEvent timer_;
 };

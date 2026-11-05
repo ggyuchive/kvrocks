@@ -305,14 +305,7 @@ class CommandBZPop : public BlockingCommander {
   explicit CommandBZPop(bool min) : min_(min) {}
 
   Status Parse(const std::vector<std::string> &args) override {
-    auto parse_result = ParseFloat(args[args.size() - 1]);
-    if (!parse_result) {
-      return {Status::RedisParseErr, errTimeoutIsNotFloat};
-    }
-    if (*parse_result < 0) {
-      return {Status::RedisParseErr, errTimeoutIsNegative};
-    }
-    timeout_ = static_cast<int64_t>(*parse_result * 1000 * 1000);
+    timeout_ = GET_OR_RET(ParseTimeout(args.back()));
 
     keys_ = std::vector<std::string>(args.begin() + 1, args.end() - 1);
     return Commander::Parse(args);
@@ -432,7 +425,7 @@ class CommandZMPop : public Commander {
 
   Status Parse(const std::vector<std::string> &args) override {
     CommandParser parser(args, 1);
-    numkeys_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+    numkeys_ = GET_OR_RET(parser.TakePositiveInt<int>());
     for (int i = 0; i < numkeys_; ++i) {
       keys_.emplace_back(GET_OR_RET(parser.TakeStr()));
     }
@@ -443,7 +436,7 @@ class CommandZMPop : public Commander {
       } else if (flag_ == ZSET_NONE && parser.EatEqICase("max")) {
         flag_ = ZSET_MAX;
       } else if (count_ == 0 && parser.EatEqICase("count")) {
-        count_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+        count_ = GET_OR_RET(parser.TakePositiveInt<int>());
       } else {
         return parser.InvalidSyntax();
       }
@@ -492,12 +485,9 @@ class CommandBZMPop : public BlockingCommander {
   Status Parse(const std::vector<std::string> &args) override {
     CommandParser parser(args, 1);
 
-    timeout_ = static_cast<int64_t>(GET_OR_RET(parser.TakeFloat<double>()) * 1000 * 1000);
-    if (timeout_ < 0) {
-      return {Status::RedisParseErr, errTimeoutIsNegative};
-    }
+    timeout_ = GET_OR_RET(ParseTimeout(GET_OR_RET(parser.TakeStr())));
 
-    num_keys_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+    num_keys_ = GET_OR_RET(parser.TakePositiveInt<int>());
     for (int i = 0; i < num_keys_; ++i) {
       keys_.emplace_back(GET_OR_RET(parser.TakeStr()));
     }
@@ -508,7 +498,7 @@ class CommandBZMPop : public BlockingCommander {
       } else if (flag_ == ZSET_NONE && parser.EatEqICase("max")) {
         flag_ = ZSET_MAX;
       } else if (count_ == 0 && parser.EatEqICase("count")) {
-        count_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+        count_ = GET_OR_RET(parser.TakePositiveInt<int>());
       } else {
         return parser.InvalidSyntax();
       }
@@ -1124,7 +1114,7 @@ class CommandZUnion : public Commander {
  public:
   Status Parse(const std::vector<std::string> &args) override {
     CommandParser parser(args, 1);
-    numkeys_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+    numkeys_ = GET_OR_RET(parser.TakePositiveInt<int>());
     for (size_t i = 0; i < numkeys_; ++i) {
       keys_weights_.emplace_back(KeyWeight{GET_OR_RET(parser.TakeStr()), 1});
     }
@@ -1330,7 +1320,7 @@ class CommandZInterCard : public Commander {
  public:
   Status Parse(const std::vector<std::string> &args) override {
     CommandParser parser(args, 1);
-    numkeys_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+    numkeys_ = GET_OR_RET(parser.TakePositiveInt<int>());
     for (size_t i = 0; i < numkeys_; ++i) {
       keys_.emplace_back(GET_OR_RET(parser.TakeStr()));
     }

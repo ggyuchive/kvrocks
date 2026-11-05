@@ -443,7 +443,7 @@ class CommandGeoSearch : public CommandGeoBase {
       } else if (parser.EatEqICase("desc") && sort_ == kSortNone) {
         sort_ = kSortDESC;
       } else if (parser.EatEqICase("count")) {
-        count_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+        count_ = GET_OR_RET(parser.TakePositiveInt<int>());
       } else if (parser.EatEqICase("withcoord")) {
         with_coord_ = true;
       } else if (parser.EatEqICase("withdist")) {
@@ -614,7 +614,7 @@ class CommandGeoSearchStore : public CommandGeoSearch {
       } else if (parser.EatEqICase("desc") && sort_ == kSortNone) {
         sort_ = kSortDESC;
       } else if (parser.EatEqICase("count")) {
-        count_ = GET_OR_RET(parser.TakeInt<int>(NumericRange<int>{1, std::numeric_limits<int>::max()}));
+        count_ = GET_OR_RET(parser.TakePositiveInt<int>());
       } else if (parser.EatEqICase("storedist")) {
         store_distance_ = true;
       } else {

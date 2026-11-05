@@ -295,7 +295,7 @@ Status ParseHashFieldListTail(Parser &parser, std::vector<std::string> *fields) 
     return {Status::RedisParseErr, errWrongNumOfArguments};
   }
 
-  auto num_fields = parser.template TakeInt<int64_t>(NumericRange<int64_t>{1, std::numeric_limits<int64_t>::max()}, 10);
+  auto num_fields = parser.template TakePositiveInt<int64_t>();
   if (!num_fields) {
     return {Status::RedisParseErr, errValueNotInteger};
   }
