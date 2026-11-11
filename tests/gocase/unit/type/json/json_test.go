@@ -102,6 +102,19 @@ func testJSON(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.Equal(t, `[ {  "x":1,  "y":2 }]`, rdb.Do(ctx, "JSON.GET", "a", "INDENT", " ", "$").Val())
 	})
 
+	t.Run("JSON path with an invalid regex", func(t *testing.T) {
+		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a", "$", `{"a":"foo","arr":[1,2,3]}`).Err())
+		path := `$[?(@.a =~ /(/)]`
+		require.Error(t, rdb.Do(ctx, "JSON.GET", "a", path).Err())
+		require.Error(t, rdb.Do(ctx, "JSON.SET", "a", path, "1").Err())
+		require.Error(t, rdb.Do(ctx, "JSON.DEL", "a", path).Err())
+		require.Error(t, rdb.Do(ctx, "JSON.RESP", "a", path).Err())
+		require.Error(t, rdb.Do(ctx, "JSON.DEBUG", "MEMORY", "a", path).Err())
+		require.Error(t, rdb.Do(ctx, "JSON.GET", "a", `tokenize($.a, '(')`).Err())
+		require.Equal(t, []interface{}{nil}, rdb.Do(ctx, "JSON.MGET", "a", path).Val())
+		EqualJSON(t, `[{"a":"foo","arr":[1,2,3]}]`, rdb.Do(ctx, "JSON.GET", "a", "$").Val())
+	})
+
 	t.Run("JSON storage format CBOR", func(t *testing.T) {
 		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a", "$", `{"x":1, "y":2}`).Err())
 		require.Equal(t, "json", rdb.Do(ctx, "JSON.INFO", "a").Val().([]interface{})[1])
@@ -187,6 +200,10 @@ func testJSON(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.Error(t, rdb.Do(ctx, "JSON.STRAPPEND", "a", "$.a", "be").Err())
 		require.Error(t, rdb.Do(ctx, "JSON.STRAPPEND", "a", "$.a", "").Err())
 		require.Equal(t, rdb.Do(ctx, "JSON.GET", "a", "$.a").Val(), `["foobe"]`)
+
+		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a", "$", `"foo"`).Err())
+		require.Equal(t, []interface{}{int64(5)}, rdb.Do(ctx, "JSON.STRAPPEND", "a", "\"be\"").Val())
+		EqualJSON(t, `["foobe"]`, rdb.Do(ctx, "JSON.GET", "a", "$").Val())
 	})
 
 	t.Run("JSON.STRLEN basics", func(t *testing.T) {
@@ -398,6 +415,10 @@ func testJSON(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.EqualValues(t, []interface{}{"3"}, rdb.Do(ctx, "JSON.ARRPOP", "a", "$", "0").Val())
 		require.EqualValues(t, []interface{}{nil}, rdb.Do(ctx, "JSON.ARRPOP", "a", "$").Val())
 
+		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a", "$", `[1,2,3]`).Err())
+		require.EqualValues(t, []interface{}{"1"}, rdb.Do(ctx, "JSON.ARRPOP", "a", "$", "-9223372036854775808").Val())
+		require.EqualValues(t, []interface{}{"3"}, rdb.Do(ctx, "JSON.ARRPOP", "a", "$", "9223372036854775807").Val())
+
 		require.NoError(t, rdb.Do(ctx, "JSON.SET", "o", "$", `{"o":{"x":1},"s":"str","i":1,"d":2.2}`).Err())
 		require.EqualValues(t, []interface{}{nil}, rdb.Do(ctx, "JSON.ARRPOP", "o", "$.o", 1).Val())
 		require.EqualValues(t, []interface{}{nil}, rdb.Do(ctx, "JSON.ARRPOP", "o", "$.s", -1).Val())
@@ -564,6 +585,14 @@ func testJSON(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.Equal(t, []interface{}{nil, nil, nil}, rdb.Do(ctx, arrIndexCmd, "a", "$.arr.*", `1`).Val())
 		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a1", "$", `{"arr":[[1],[2],[3]]}`).Err())
 		require.Equal(t, []interface{}{int64(0), int64(-1), int64(-1)}, rdb.Do(ctx, arrIndexCmd, "a1", "$.arr.*", `1`).Val())
+
+		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a", "$", `[]`).Err())
+		require.Equal(t, []interface{}{int64(-1)}, rdb.Do(ctx, arrIndexCmd, "a", "$", `1`).Val())
+		require.Equal(t, []interface{}{int64(-1)}, rdb.Do(ctx, arrIndexCmd, "a", "$", `1`, -1).Val())
+
+		require.NoError(t, rdb.Do(ctx, "JSON.SET", "a", "$", `[1,2,3]`).Err())
+		require.Equal(t, []interface{}{int64(-1)}, rdb.Do(ctx, arrIndexCmd, "a", "$", `3`, 2, 1).Val())
+		require.Equal(t, []interface{}{int64(-1)}, rdb.Do(ctx, arrIndexCmd, "a", "$", `3`, -1, 1).Val())
 	})
 
 	t.Run("JSON.NUMOP basics", func(t *testing.T) {

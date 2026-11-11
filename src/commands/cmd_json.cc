@@ -558,7 +558,7 @@ class CommandJsonStrAppend : public Commander {
 
     Optionals<uint64_t> results;
 
-    auto s = json.StrAppend(ctx, args_[1], path, args_[3], &results);
+    auto s = json.StrAppend(ctx, args_[1], path, args_.back(), &results);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
     *output = OptionalsToString(conn, results);

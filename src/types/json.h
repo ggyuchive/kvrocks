@@ -169,7 +169,7 @@ struct JsonValue {
 
         jsoncons::jsonpath::replace(value, location, new_value.value, true);
       }
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -216,7 +216,7 @@ struct JsonValue {
                                          results.emplace_back(std::nullopt);
                                        }
                                      });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return results;
@@ -238,7 +238,7 @@ struct JsonValue {
         }
         results.emplace_back(buffer.size());
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     if (!s) return s;
@@ -249,7 +249,7 @@ struct JsonValue {
   StatusOr<JsonValue> Get(std::string_view path) const {
     try {
       return jsoncons::jsonpath::json_query(value, path);
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
   }
@@ -267,7 +267,7 @@ struct JsonValue {
               results.emplace_back(std::nullopt);
             }
           });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -295,7 +295,7 @@ struct JsonValue {
               results.emplace_back(std::nullopt);
             }
           });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -327,6 +327,10 @@ struct JsonValue {
           return;
         }
         auto [pstart, pend] = NormalizeArrIndices(start, end, static_cast<ssize_t>(val.size()));
+        if (val.empty() || pstart >= pend) {
+          results.emplace_back(-1);
+          return;
+        }
         auto arr_begin = val.array_range().begin();
         auto begin_it = arr_begin + pstart;
 
@@ -339,7 +343,7 @@ struct JsonValue {
         // index not found
         results.emplace_back(-1);
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return results;
@@ -377,7 +381,7 @@ struct JsonValue {
             break;
         }
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -395,7 +399,7 @@ struct JsonValue {
           results.emplace_back(std::nullopt);
         }
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     std::reverse(results.begin(), results.end());
@@ -421,7 +425,7 @@ struct JsonValue {
 
         count++;
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return count;
@@ -438,7 +442,7 @@ struct JsonValue {
                                          results.emplace_back(std::nullopt);
                                        }
                                      });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return results;
@@ -476,9 +480,7 @@ struct JsonValue {
         jsoncons::jsonpath::remove(value, path);
         is_updated = true;
       }
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
-      return {Status::NotOK, e.what()};
-    } catch (const jsoncons::ser_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -500,7 +502,7 @@ struct JsonValue {
                                          keys.emplace_back(std::nullopt);
                                        }
                                      });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -518,7 +520,7 @@ struct JsonValue {
                                          obj_lens.emplace_back(std::nullopt);
                                        }
                                      });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return obj_lens;
@@ -534,7 +536,7 @@ struct JsonValue {
                                            auto len = static_cast<int64_t>(val.size());
                                            auto popped_iter = val.array_range().begin();
                                            if (index < 0) {
-                                             popped_iter += len - std::min(len, -index);
+                                             popped_iter += std::max<int64_t>(0, len + index);
                                            } else if (index > 0) {
                                              popped_iter += std::min(len - 1, index);
                                            }
@@ -544,7 +546,7 @@ struct JsonValue {
                                            popped_values.emplace_back(std::nullopt);
                                          }
                                        });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 
@@ -577,7 +579,7 @@ struct JsonValue {
               results.emplace_back(std::nullopt);
             }
           });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return results;
@@ -587,7 +589,7 @@ struct JsonValue {
     size_t count = 0;
     try {
       count = jsoncons::jsonpath::remove(value, path);
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return count;
@@ -626,7 +628,7 @@ struct JsonValue {
         }
         result->value.push_back(origin);
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
     return status;
@@ -670,7 +672,7 @@ struct JsonValue {
         TransformResp(origin, json_resp, resp);
         json_resps.emplace_back(json_resp);
       });
-    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+    } catch (const std::exception &e) {
       return {Status::NotOK, e.what()};
     }
 

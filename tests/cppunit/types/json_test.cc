@@ -412,6 +412,13 @@ TEST_F(RedisJsonTest, ArrPop) {
   ASSERT_FALSE(res[0].has_value());
   res.clear();
 
+  ASSERT_TRUE(json_->Set(*ctx_, key_, "$", "[1,2,3]").ok());
+  ASSERT_TRUE(json_->ArrPop(*ctx_, key_, "$", std::numeric_limits<int64_t>::min(), &res).ok());
+  ASSERT_EQ(res.size(), 1);
+  ASSERT_TRUE(res[0].has_value());
+  ASSERT_EQ(res[0]->Dump().GetValue(), "1");
+  res.clear();
+
   // Non-array
   ASSERT_TRUE(json_->Set(*ctx_, key_, "$", R"({"o":{"x":1},"s":"str","i":1,"d":2.2})").ok());
   ASSERT_TRUE(json_->ArrPop(*ctx_, key_, "$.o", 1, &res).ok());
@@ -500,6 +507,23 @@ TEST_F(RedisJsonTest, ArrIndex) {
 
   ASSERT_TRUE(json_->ArrIndex(*ctx_, key_, "$.arr", "3", 0, 2, &res).ok() && res.size() == 1);
   ASSERT_EQ(res[0], -1);
+
+  ASSERT_TRUE(json_->ArrIndex(*ctx_, key_, "$.arr", "4", 4, 3, &res).ok() && res.size() == 1);
+  ASSERT_EQ(res[0], -1);
+
+  ASSERT_TRUE(json_->Set(*ctx_, key_, "$", R"({"arr":[]})").ok());
+  ASSERT_TRUE(json_->ArrIndex(*ctx_, key_, "$.arr", "1", 0, max_end, &res).ok() && res.size() == 1);
+  ASSERT_EQ(res[0], -1);
+}
+
+TEST_F(RedisJsonTest, InvalidRegexInPath) {
+  JsonValue json_val;
+  size_t result = 0;
+
+  ASSERT_TRUE(json_->Set(*ctx_, key_, "$", R"({"a":"foo"})").ok());
+  ASSERT_FALSE(json_->Get(*ctx_, key_, {"$[?(@.a =~ /(/)]"}, &json_val).ok());
+  ASSERT_FALSE(json_->Set(*ctx_, key_, "$[?(@.a =~ /(/)]", "1").ok());
+  ASSERT_FALSE(json_->Del(*ctx_, key_, "$[?(@.a =~ /(/)]", &result).ok());
 }
 
 TEST_F(RedisJsonTest, Del) {
