@@ -22,6 +22,7 @@ package multi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/apache/kvrocks/tests/gocase/util"
@@ -321,5 +322,55 @@ func TestMulti(t *testing.T) {
 		require.NoError(t, rdb.Do(ctx, "MULTI").Err())
 		require.NoError(t, rdb.Do(ctx, "INCR", "x").Err())
 		require.Equal(t, rdb.Do(ctx, "EXEC").Val(), []interface{}{int64(51)})
+	})
+
+	t.Run("Commands that read a key written earlier in the same transaction", func(t *testing.T) {
+		require.NoError(t, rdb.FlushDB(ctx).Err())
+
+		require.NoError(t, rdb.Do(ctx, "MULTI").Err())
+		require.NoError(t, rdb.Do(ctx, "SET", "a", "1").Err())
+		require.NoError(t, rdb.Do(ctx, "RENAME", "a", "b").Err())
+		require.NoError(t, rdb.Do(ctx, "SET", "c", "1").Err())
+		require.NoError(t, rdb.Do(ctx, "COPY", "c", "d").Err())
+		require.NoError(t, rdb.Do(ctx, "DECR", "e").Err())
+		require.NoError(t, rdb.Do(ctx, "RENAMENX", "e", "f").Err())
+		require.NoError(t, rdb.Do(ctx, "HSET", "h", "f", "v").Err())
+		require.NoError(t, rdb.Do(ctx, "RENAME", "h", "g").Err())
+		require.Equal(t, []interface{}{"OK", "OK", "OK", int64(1), int64(-1), int64(1), int64(1), "OK"},
+			rdb.Do(ctx, "EXEC").Val())
+		require.Equal(t, []interface{}{"1", "1", "-1"}, rdb.MGet(ctx, "b", "d", "f").Val())
+		require.Equal(t, "v", rdb.HGet(ctx, "g", "f").Val())
+
+		require.NoError(t, rdb.Do(ctx, "MULTI").Err())
+		require.NoError(t, rdb.Do(ctx, "RPUSH", "l1", "a", "b", "c", "d", "e", "f", "g", "h").Err())
+		require.NoError(t, rdb.Do(ctx, "LINSERT", "l1", "BEFORE", "e", "x").Err())
+		require.NoError(t, rdb.Do(ctx, "RPUSH", "l2", "", "d").Err())
+		require.NoError(t, rdb.Do(ctx, "LINSERT", "l2", "BEFORE", "d", "a").Err())
+		require.NoError(t, rdb.Do(ctx, "LPUSH", "l3", "d", "b", "d").Err())
+		require.NoError(t, rdb.Do(ctx, "LREM", "l3", "-6", "d").Err())
+		require.Equal(t, []interface{}{int64(8), int64(9), int64(2), int64(3), int64(3), int64(2)},
+			rdb.Do(ctx, "EXEC").Val())
+		require.Equal(t, []string{"a", "b", "c", "d", "x", "e", "f", "g", "h"}, rdb.LRange(ctx, "l1", 0, -1).Val())
+		require.Equal(t, []string{"", "a", "d"}, rdb.LRange(ctx, "l2", 0, -1).Val())
+		require.Equal(t, []string{"b"}, rdb.LRange(ctx, "l3", 0, -1).Val())
+
+		// The sizes put the transaction's batch at its capacity when ZPOPMIN deletes the member.
+		member := strings.Repeat("m", 63)
+		require.NoError(t, rdb.ZAdd(ctx, "z", redis.Z{Score: 2, Member: "b"}).Err())
+		require.NoError(t, rdb.Do(ctx, "MULTI").Err())
+		require.NoError(t, rdb.Do(ctx, "SET", "p", "xxx").Err())
+		require.NoError(t, rdb.Do(ctx, "ZADD", "z", "1", member, "2", "b").Err())
+		require.NoError(t, rdb.Do(ctx, "ZPOPMIN", "z").Err())
+		require.NoError(t, rdb.Do(ctx, "EXEC").Err())
+		require.Equal(t, []string{"b"}, rdb.ZRange(ctx, "z", 0, -1).Val())
+
+		// The same for TS.DEL deleting the first sample of a chunk.
+		require.NoError(t, rdb.Do(ctx, "MULTI").Err())
+		require.NoError(t, rdb.Do(ctx, "SET", "pad", strings.Repeat("x", 81)).Err())
+		require.NoError(t, rdb.Do(ctx, "TS.ADD", "ts", "1000", "1").Err())
+		require.NoError(t, rdb.Do(ctx, "TS.ADD", "ts", "2000", "2").Err())
+		require.NoError(t, rdb.Do(ctx, "TS.DEL", "ts", "0", "1500").Err())
+		require.Equal(t, []interface{}{"OK", int64(1000), int64(2000), int64(1)}, rdb.Do(ctx, "EXEC").Val())
+		require.Len(t, rdb.Do(ctx, "TS.RANGE", "ts", "-", "+").Val(), 1)
 	})
 }

@@ -76,6 +76,27 @@ const int64_t kIORateLimitMaxMb = 1024000;
 
 using rocksdb::Slice;
 
+namespace {
+
+// Appends a command's writes to the transaction's batch. DeleteRange is passed through as before
+// instead of being expanded into a delete of every key in the range.
+class TxnWriteBatchAppender : public WriteBatchIndexer {
+ public:
+  TxnWriteBatchAppender(Storage *storage, rocksdb::WriteBatchWithIndex *txn_batch, const rocksdb::Snapshot *snapshot)
+      : WriteBatchIndexer(storage, txn_batch, snapshot), storage_(storage), txn_batch_(txn_batch) {}
+
+  rocksdb::Status DeleteRangeCF(uint32_t column_family_id, const Slice &begin_key, const Slice &end_key) override {
+    return txn_batch_->DeleteRange(storage_->GetCFHandle(static_cast<ColumnFamilyID>(column_family_id)), begin_key,
+                                   end_key);
+  }
+
+ private:
+  Storage *storage_;
+  rocksdb::WriteBatchWithIndex *txn_batch_;
+};
+
+}  // namespace
+
 Storage::Storage(Config *config)
     : backup_creating_time_secs_(util::GetTimeStamp<std::chrono::seconds>()),
       env_(rocksdb::Env::Default()),
@@ -714,8 +735,11 @@ void Storage::MultiGet(engine::Context &ctx, const rocksdb::ReadOptions &options
 rocksdb::Status Storage::Write(engine::Context &ctx, const rocksdb::WriteOptions &options,
                                rocksdb::WriteBatch *updates) {
   if (is_txn_mode_) {
-    // The batch won't be flushed until the transaction was committed or rollback
-    return rocksdb::Status::OK();
+    // The batch won't be flushed until the transaction was committed or rollback.
+    // Each command writes to its own batch and appends it here when it is done, so iterators over
+    // txn_write_batch_ don't see the batch change (and its buffer reallocated) while a command uses them.
+    TxnWriteBatchAppender appender(this, txn_write_batch_.get(), ctx.GetSnapshot());
+    return updates->Iterate(&appender);
   }
   return writeToDB(ctx, options, updates);
 }
@@ -999,10 +1023,7 @@ Status Storage::CommitTxn() {
   return {Status::NotOK, s.ToString()};
 }
 
-ObserverOrUniquePtr<rocksdb::WriteBatchBase> Storage::GetWriteBatchBase() {
-  if (is_txn_mode_) {
-    return ObserverOrUniquePtr<rocksdb::WriteBatchBase>(txn_write_batch_.get(), ObserverOrUnique::Observer);
-  }
+ObserverOrUniquePtr<rocksdb::WriteBatchBase> Storage::GetWriteBatchBase() const {
   return ObserverOrUniquePtr<rocksdb::WriteBatchBase>(
       new rocksdb::WriteBatch(0 /*reserved_bytes*/, GetWriteBatchMaxBytes()), ObserverOrUnique::Unique);
 }
