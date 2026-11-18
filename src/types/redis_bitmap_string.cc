@@ -20,6 +20,7 @@
 
 #include "redis_bitmap_string.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "common/bit_util.h"
@@ -288,11 +289,15 @@ rocksdb::Status BitmapString::BitfieldReadOnly([[maybe_unused]] const Slice &ns_
     uint32_t first_byte = op.offset / 8;
     uint32_t last_byte = (op.offset + op.encoding.Bits() - 1) / 8 + 1;
 
+    // Bits past the end of the string read as 0, so only copy the bytes that exist.
     ArrayBitfieldBitmap bitfield(first_byte);
-    auto s = bitfield.Set(first_byte, last_byte - first_byte,
-                          reinterpret_cast<const uint8_t *>(string_value.data() + first_byte));
-    if (!s.IsOK()) {
-      return rocksdb::Status::IOError(s.Msg());
+    if (first_byte < string_value.size()) {
+      auto end_byte = static_cast<uint32_t>(std::min<size_t>(last_byte, string_value.size()));
+      auto s = bitfield.Set(first_byte, end_byte - first_byte,
+                            reinterpret_cast<const uint8_t *>(string_value.data() + first_byte));
+      if (!s.IsOK()) {
+        return rocksdb::Status::IOError(s.Msg());
+      }
     }
 
     if (op.encoding.IsSigned()) {

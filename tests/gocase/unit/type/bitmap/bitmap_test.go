@@ -438,6 +438,24 @@ func TestBitmap(t *testing.T) {
 		require.ErrorContains(t, rdb.Do(ctx, "BITFIELD_RO", k, "INCRBY", "u8", "32", 2).Err(), "BITFIELD_RO only supports the GET subcommand")
 	})
 
+	t.Run("BITFIELD and BITFIELD_RO GET past the end of a string value", func(t *testing.T) {
+		t.Parallel()
+		p := util.KeyPrefix(t)
+		k := p + "str"
+		require.NoError(t, rdb.Set(ctx, k, "ab", 0).Err())
+		for _, command := range []string{"BITFIELD", "BITFIELD_RO"} {
+			// Entirely past the end: bits that do not exist read as 0.
+			res := rdb.Do(ctx, command, k, "GET", "u29", "143", "GET", "u8", "128", "GET", "i64", "64", "GET", "u26", "#4")
+			require.NoError(t, res.Err())
+			require.EqualValues(t, []interface{}{int64(0), int64(0), int64(0), int64(0)}, res.Val())
+			// Partly past the end: "b" (0x62) followed by zero bits.
+			res = rdb.Do(ctx, command, k, "GET", "u16", "8", "GET", "i16", "8", "GET", "u12", "12")
+			require.NoError(t, res.Err())
+			require.EqualValues(t, []interface{}{int64(0x6200), int64(0x6200), int64(0x200)}, res.Val())
+		}
+		require.EqualValues(t, "ab", rdb.Get(ctx, k).Val())
+	})
+
 	t.Run("BITFIELD positional offset #N syntax", func(t *testing.T) {
 		require.NoError(t, rdb.Del(ctx, "bf_pos").Err())
 
